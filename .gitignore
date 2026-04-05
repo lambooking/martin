@@ -1,0 +1,22 @@
+# 忽略 Python 缓存文件
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 忽略系统生成文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 忽略数据输入与输出文件夹 (体积太大且属于本地科研数据)
+data/
+output/
+
+# 忽略 IDE 相关文件
+.idea/
+.vscode/
+*.swp
