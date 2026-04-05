@@ -33,7 +33,7 @@ from config import (
 # ------------------------------------------------------------------
 TILE_SIZE = 512          # 分块计算的大小
 UPSAMPLE_FACTOR = 10     # 亚像素提升倍数 (10代表精度到0.1像元)
-EDGE_THRESHOLD = 0.05    # 判定为“活跃块”的边缘强度阈值
+EDGE_THRESHOLD = 0.005   # 判定为“活跃块”的边缘强度阈值 (调低以适配稀疏边缘)
 
 
 def compute_auto_offset(period: str):
