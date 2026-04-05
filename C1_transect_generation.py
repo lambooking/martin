@@ -1,13 +1,13 @@
 """
 C1 — 基线构建与断面生成
 ============================================================
-输入：data/boundary/baseline.shp（手工数字化的沿岸参考基线）
-输出：output/transects/transects.gpkg（垂直断面矢量，间距50m，总长4km）
+输入：output/waterlines/2019_Q1_waterline.gpkg（用第一期的水边线自动平滑生成）
+输出：output/transects/transects.gpkg（垂直断面矢量，间距50m）
 
 说明：
     - 基线为固定参考线，所有 24 期水边线共用同一套断面
+    - 断面的生成需要一条相对平滑稳定的底线，所以我们把 2019第一期的海线使用高强度平滑处理充当底线。
     - 断面方向：垂直于基线局部切线，向海3km，向陆1km
-    - ⚠️ 生成后务必目视验证法向量方向（正方向=向海）
 """
 
 import os
@@ -18,7 +18,7 @@ from shapely.geometry import LineString, Point
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from config import (
-    BASELINE_SHP, TRANSECT_DIR,
+    WATERLINE_DIR, TRANSECT_DIR,
     TRANSECT_SPACING, TRANSECT_SEA_LENGTH, TRANSECT_LAND_LENGTH
 )
 
@@ -106,44 +106,43 @@ def generate_transects(
 
 def main():
     print("=" * 55)
-    print("  C1 — 基线断面生成")
+    print("  C1 — 基于2019原初线的自动化基线断面生成")
     print(f"       间距={TRANSECT_SPACING} m, "
           f"向海={TRANSECT_SEA_LENGTH} m, "
           f"向陆={TRANSECT_LAND_LENGTH} m")
     print("=" * 55)
 
-    if not os.path.exists(BASELINE_SHP):
-        print(f"❌ 基线文件不存在：{BASELINE_SHP}")
-        print("   请先在 QGIS 中手工数字化研究区沿岸基线，保存为上述路径。")
-        print("   基线要求：")
-        print("   - 使用投影坐标系（如 CGCS2000 / EPSG:4490 等效投影）")
-        print("   - 走向大致平行于岸线")
-        print("   - 保存为 ESRI Shapefile 格式")
+    base_waterline_path = os.path.join(WATERLINE_DIR, "2019_Q1_waterline.gpkg")
+
+    if not os.path.exists(base_waterline_path):
+        print(f"❌ 找不到初始参照水边线：{base_waterline_path}")
+        print("   请确保 B 阶段已经成功运行并输出了 2019_Q1 期的海岸线！")
         return
 
-    # 读取基线
-    baseline_gdf = gpd.read_file(BASELINE_SHP)
-    print(f"  基线 CRS：{baseline_gdf.crs}")
-    print(f"  基线要素数：{len(baseline_gdf)}")
-
+    # 读取起始图层生成作为基线使用
+    print(f"\n  正在加载 {base_waterline_path} ...")
+    baseline_gdf = gpd.read_file(base_waterline_path)
+    
     # 确保是投影坐标系（单位米），否则无法按米计算间距
     if baseline_gdf.crs is not None and baseline_gdf.crs.is_geographic:
-        print("  ⚠️  检测到地理坐标系（度），建议先转为投影坐标系（米）！")
-        print("       尝试转换为 EPSG:32650 (UTM 50N) ...")
+        print("  ⚠️  检测到地理坐标系，由于求法向量需要米作为单位，将转为 EPSG:32650...")
         baseline_gdf = baseline_gdf.to_crs("EPSG:32650")
-        print(f"       转换后 CRS：{baseline_gdf.crs}")
-
-    # 合并所有基线段为一条
+        
+    # 合并并执行强平滑，从而洗掉曲折的海滩锯齿，做成完美的参考平滑线
     from shapely.ops import linemerge, unary_union
     all_lines = unary_union(baseline_gdf.geometry)
     if all_lines.geom_type == "MultiLineString":
         all_lines = linemerge(all_lines)
-    print(f"  基线总长度：{all_lines.length/1000:.2f} km")
+        
+    print("  正在执行海岸线强平滑操作以构建断面基准...")
+    # simplify容差给100米来去除一切小锯齿
+    smooth_baseline = all_lines.simplify(100, preserve_topology=True)
+    print(f"  基线总长度：{smooth_baseline.length/1000:.2f} km")
 
     # 生成断面
     print(f"\n  生成断面中...")
     transects_gdf = generate_transects(
-        baseline_geom=all_lines,
+        baseline_geom=smooth_baseline,
         baseline_crs=baseline_gdf.crs,
         spacing=TRANSECT_SPACING,
         length_sea=TRANSECT_SEA_LENGTH,
@@ -156,15 +155,20 @@ def main():
     os.makedirs(TRANSECT_DIR, exist_ok=True)
     out_path = os.path.join(TRANSECT_DIR, "transects.gpkg")
     transects_gdf.to_file(out_path, driver="GPKG")
-    print(f"\n  ✅ 断面已保存：{out_path}")
+    
+    # 也把生成的平滑基线存一份用于给用户对比参阅
+    baseline_out_path = os.path.join(TRANSECT_DIR, "auto_smoothed_baseline.gpkg")
+    gpd.GeoDataFrame(geometry=[smooth_baseline], crs=baseline_gdf.crs).to_file(baseline_out_path, driver="GPKG")
+    
+    print(f"\n  ✅ 断面体系已保存：{out_path}")
+    print(f"  ✅ 自动生成的包络基线已保存：{baseline_out_path}")
 
     # 验证提示
-    print("\n  ⚠️  验证步骤（必须！）：")
-    print("  1. 在 QGIS 中打开 transects.gpkg 和研究区底图")
-    print("  2. 目视检查：断面是否从陆地方向指向海洋方向")
-    print("  3. 若方向相反（断面从海指向陆），请在代码中将 nx/ny 取反后重新生成")
-    print("  4. 检查断面是否均匀分布，无明显错误")
-    print(f"\n✅ C1 完成！生成 {n_transects} 条断面")
+    print("\n  ⚠️  验证步骤（建议）：")
+    print("  1. 在 QGIS 中打开 transects.gpkg / auto_smoothed_baseline.gpkg 检查")
+    print("  2. 目视检查：断面是否从陆地方感指向海洋")
+    print("  3. 若所有断面切面方向正好全反过来了，在代码生成法向量处修改一下即可")
+    print(f"\n✅ C1 完美完成！生成 {n_transects} 条断面")
 
 
 if __name__ == "__main__":

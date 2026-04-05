@@ -1,10 +1,10 @@
 """
-B1 — MNDWI 计算
+B1 — MNDWI 计算 / 读取
 ============================================================
-输入：data/s2/YYYY_QN_s2.tif（Band1=Green, Band2=SWIR）
+输入：data/s2/YYYY_QN_s2.tif（该项目数据已在GEE计算成了单波段 MNDWI）
 输出：output/mndwi/YYYY_QN_mndwi.tif（单波段浮点，值域约 -1~1）
 
-公式：MNDWI = (Green - SWIR) / (Green + SWIR)
+逻辑：因为用户下载的S2直接就是MNDWI波段，本脚本将直接读取Band 1，处理好 NoData 后格式化输出。
 """
 
 import os
@@ -15,7 +15,7 @@ from rasterio.transform import from_bounds
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from config import (
-    S2_DIR, MNDWI_DIR, PERIODS, S2_BAND_ORDER
+    S2_DIR, MNDWI_DIR, PERIODS
 )
 
 
@@ -39,21 +39,15 @@ def compute_mndwi_for_period(period: str) -> str:
         return None
 
     with rasterio.open(in_path) as src:
-        # 读取 Green 和 SWIR 波段（转为 float32）
-        green = src.read(S2_BAND_ORDER["green"] + 1).astype(np.float32)
-        swir  = src.read(S2_BAND_ORDER["swir"]  + 1).astype(np.float32)
+        # 用户数据已是单波段 MNDWI，直接读 Band 1
+        mndwi = src.read(1).astype(np.float32)
 
-        # 获取 nodata 掩膜（任一波段为 nodata 则屏蔽）
         nodata_val = src.nodata if src.nodata is not None else 0
-        invalid_mask = (green == nodata_val) | (swir == nodata_val)
+        invalid_mask = (mndwi == nodata_val)
 
-        # 计算 MNDWI，分母为 0 时置 NaN
-        denom = green + swir
-        with np.errstate(invalid="ignore", divide="ignore"):
-            mndwi = np.where(denom != 0, (green - swir) / denom, np.nan)
-
-        # 将 nodata 区域置 NaN
+        # 确保值域被限制在 -1 到 1 中间（去除异常值）而且处理 nodata 
         mndwi[invalid_mask] = np.nan
+        mndwi = np.clip(mndwi, -1.0, 1.0)
 
         # 更新元数据：单波段 float32，nodata=NaN
         meta = src.meta.copy()
