@@ -91,8 +91,12 @@ COREG_CHECK_PERIODS = ["2020_Q1", "2021_Q3", "2022_Q4"]  # 用于检验的期次
 # 工具函数：确保输出目录存在
 # ------------------------------------------------------------------
 def ensure_dirs():
-    """创建所有输出子目录（若已存在则跳过）。"""
+    """创建所有输入与输出子目录（若已存在则跳过）。"""
     dirs = [
+        # 输入数据存放目录
+        DATA_DIR, S2_DIR, S1_DIR, BOUNDARY_DIR,
+        # 各阶段产生缓存与输出目录
+        OUTPUT_DIR,
         MNDWI_DIR, S1_DB_DIR, THRESH_DIR, WATER_MASK_DIR,
         WATER_CLEAN_DIR, SEA_MASK_DIR, WATERLINE_DIR, TRANSECT_DIR,
         DISTANCE_DIR, ANNUAL_SL_DIR, CHANGE_DIR, ACCURACY_DIR,
