@@ -47,7 +47,7 @@ def generate_validation_points_for_period(period: str) -> bool:
     """
     sea_path      = os.path.join(SEA_MASK_DIR, f"{period}_sea.tif")
     waterline_gpkg = os.path.join(WATERLINE_DIR, f"{period}_waterline.gpkg")
-    s2_path       = os.path.join(S2_DIR, f"S2_{period}.tif")
+    s2_path       = os.path.join(S2_DIR, f"S2_MNDWI_{period}.tif")
     out_gpkg      = os.path.join(ACCURACY_DIR, f"validation_points_{period}.gpkg")
     out_ref_csv   = os.path.join(ACCURACY_DIR, f"validation_extracted_{period}.csv")
     out_png       = os.path.join(ACCURACY_DIR, f"reference_map_{period}.png")
