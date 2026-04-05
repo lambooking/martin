@@ -36,7 +36,7 @@ def convert_to_db_for_period(period: str) -> str:
     -------
     out_path : 输出文件路径，或 None（跳过）
     """
-    in_path  = os.path.join(S1_DIR, f"{period}_s1.tif")
+    in_path  = os.path.join(S1_DIR, f"S1_{period}.tif")
     out_path = os.path.join(S1_DB_DIR, f"{period}_s1_db.tif")
 
     if not os.path.exists(in_path):

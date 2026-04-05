@@ -31,7 +31,7 @@ def compute_mndwi_for_period(period: str) -> str:
     -------
     out_path : 输出文件路径
     """
-    in_path  = os.path.join(S2_DIR, f"{period}_s2.tif")
+    in_path  = os.path.join(S2_DIR, f"S2_{period}.tif")
     out_path = os.path.join(MNDWI_DIR, f"{period}_mndwi.tif")
 
     if not os.path.exists(in_path):
