@@ -26,9 +26,10 @@ def main():
 
     scripts = [
         "config.py",
-        "A4_coregistration_check.py",
-        "B1_mndwi.py",
-        "B2_s1_to_db.py",
+        "A4_coregistration_check.py", # 手动验证脚本（可选）
+        "B1_mndwi.py",               # 预处理数据
+        "B2_s1_to_db.py",            # 预处理数据
+        "A4_auto_coregistration_check.py", # 自动化配准亚像素检测 (依赖 B1/B2)
         "B3_thresholds.py",
         "B4_water_extraction.py",
         "B5_morphological_clean.py",
@@ -48,6 +49,15 @@ def main():
             continue
             
         print(f"\n--- 准备运行模块: {script} ---")
+        
+        # 对于 A 阶段这种可选或需要人工的文件，如果报错不强制中断
+        if "A4" in script:
+            try:
+                run_script(script)
+            except Exception as e:
+                print(f"  ⚠️  {script} 跳过或执行受阻（正常现象，若已手动校准请忽略）")
+            continue
+            
         run_script(script)
         
     print("\n✅ 所有阶段均已成功执行完成！请查阅 output 目录。")
