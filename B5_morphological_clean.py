@@ -23,9 +23,9 @@ from config import (
     MORPH_OPEN_SIZE, MORPH_CLOSE_SIZE, MIN_WATER_AREA_PX
 )
 
-WATER_VAL   = 1
-NONWATER_VAL = 0
-NODATA_VAL  = 255
+WATER_VAL   = 255  # 水体像元值（白色）
+NONWATER_VAL = 0   # 非水体（黑色）
+NODATA_VAL  = 128  # nodata（灰色）
 
 
 def morphological_clean_for_period(period: str) -> dict:

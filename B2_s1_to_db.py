@@ -1,14 +1,17 @@
 """
-B2 — S1 线性值转 dB
+B2 — S1 线性值转 dB（或直通已是 dB 的数据）
 ============================================================
-输入：data/s1/YYYY_QN_s1.tif（Band1=VV_linear, Band2=VH_linear）
+输入：data/s1/S1_YYYY_QN.tif（Band1=VV, Band2=VH）
 输出：output/s1_db/YYYY_QN_s1_db.tif（Band1=VV_dB, Band2=VH_dB）
 
-公式：
-    vv_db = 10 * log10(vv_linear + 1e-10)
-    vh_db = 10 * log10(vh_linear + 1e-10)
+自动检测数据格式：
+  - 若输入包含大量负值（最小值 < -1），判定为已是 dB，直接保存。
+  - 若输入全为正值（线性功率值），则执行：
+      vv_db = 10 * log10(vv_linear + 1e-10)
+      vh_db = 10 * log10(vh_linear + 1e-10)
 
-GEE 导出的 S1 GRD 数据为线性功率值，水体区域 dB 约 -30 ~ -10 dB。
+GEE 导出 S1 GRD 有时为线性功率值（约 0.001~0.1），有时已转 dB（约 -45~+5）。
+水体区域 VH_dB 约 -30 ~ -15 dB，VV_dB 约 -25 ~ -10 dB。
 """
 
 import os
@@ -44,21 +47,35 @@ def convert_to_db_for_period(period: str) -> str:
         return None
 
     with rasterio.open(in_path) as src:
-        vv_linear = src.read(S1_BAND_ORDER["vv"] + 1).astype(np.float32)
-        vh_linear = src.read(S1_BAND_ORDER["vh"] + 1).astype(np.float32)
+        vv_raw = src.read(S1_BAND_ORDER["vv"] + 1).astype(np.float32)
+        vh_raw = src.read(S1_BAND_ORDER["vh"] + 1).astype(np.float32)
+        nodata_val = src.nodata
 
-        nodata_val = src.nodata if src.nodata is not None else 0
-        invalid_mask = (vv_linear <= 0) | (vh_linear <= 0) | \
-                       (vv_linear == nodata_val) | (vh_linear == nodata_val)
+        # 构建 nodata 掩膜：nodata 值 或 NaN
+        if nodata_val is not None:
+            nodata_mask = (vv_raw == nodata_val) | (vh_raw == nodata_val)
+        else:
+            nodata_mask = np.zeros(vv_raw.shape, dtype=bool)
+        nodata_mask |= np.isnan(vv_raw) | np.isnan(vh_raw)
 
-        # 线性转 dB
-        with np.errstate(invalid="ignore", divide="ignore"):
-            vv_db = 10.0 * np.log10(vv_linear + EPSILON)
-            vh_db = 10.0 * np.log10(vh_linear + EPSILON)
+        # 自动检测格式：有大量负值 → 已是 dB，否则视为线性
+        valid_sample = vv_raw[~nodata_mask]
+        is_already_db = (valid_sample.size > 0 and float(valid_sample.min()) < -1.0)
+
+        if is_already_db:
+            vv_db = vv_raw.copy()
+            vh_db = vh_raw.copy()
+            print(f"  ℹ️  {period}: 检测到数据已为 dB 格式，直接保存（跳过 log10 转换）")
+        else:
+            # 线性转 dB（同时将线性值 ≤ 0 的像元视为无效）
+            nodata_mask |= (vv_raw <= 0) | (vh_raw <= 0)
+            with np.errstate(invalid="ignore", divide="ignore"):
+                vv_db = 10.0 * np.log10(vv_raw + EPSILON)
+                vh_db = 10.0 * np.log10(vh_raw + EPSILON)
 
         # 无效像元置 NaN
-        vv_db[invalid_mask] = np.nan
-        vh_db[invalid_mask] = np.nan
+        vv_db[nodata_mask] = np.nan
+        vh_db[nodata_mask] = np.nan
 
         # 更新元数据
         meta = src.meta.copy()

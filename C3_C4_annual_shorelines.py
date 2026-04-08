@@ -8,7 +8,7 @@ C4 — Outer/P95 年度包络线构建
     output/annual_shorelines/Outer_P95_YYYY.gpkg   — 6条年度包络线
 
 逻辑：
-    MHW_proxy[k, y] = mean(sort(quarterly_distance[:2]))  # 最小两值均值（靠陆侧）
+    MHW_proxy[k, y] = median(quarterly_distance)          # 中位数法（年度代表岸线）
     Outer_P95[k, y] = percentile(quarterly_distance, 95)  # 向海 P95
 
 NaN 处理：
@@ -94,8 +94,7 @@ def compute_annual_positions(dist_matrix: pd.DataFrame) -> dict:
                 mhw_vals.append(np.nan)
                 outer_vals.append(np.nan)
             else:
-                sorted_vals = np.sort(row)
-                mhw  = float(np.mean(sorted_vals[:2]))     # 最小两值均值
+                mhw  = float(np.median(row))               # 中位数法（年度代表岸线）
                 out  = float(np.percentile(row, 95))        # P95
                 mhw_vals.append(mhw)
                 outer_vals.append(out)

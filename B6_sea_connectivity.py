@@ -23,12 +23,12 @@ from skimage.measure import label
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from config import (
     WATER_CLEAN_DIR, SEA_MASK_DIR, PERIODS,
-    SEA_SEED_COORDS, PIXEL_SIZE
+    SEA_SEED_COORDS, SEA_LARGE_COMPONENT_RATIO, PIXEL_SIZE
 )
 
-WATER_VAL   = 1
-NONWATER_VAL = 0
-NODATA_VAL  = 255
+WATER_VAL   = 255  # 水体像元值（白色）
+NONWATER_VAL = 0   # 非水体（黑色）
+NODATA_VAL  = 128  # nodata（灰色）
 
 
 def lonlat_to_rowcol(transform, lon: float, lat: float):
@@ -86,7 +86,23 @@ def apply_sea_connectivity_for_period(period: str) -> dict:
         # 退化：保留所有水体（不过滤）
         sea_binary = water_binary.copy()
     else:
-        # 仅保留含种子点的连通域
+        # 自动补充"大组件"：任何面积 ≥ 总水体 SEA_LARGE_COMPONENT_RATIO 的连通域
+        # 目的：防止海区在云污染期被分裂成多个大块时，种子只命中其中一块
+        from collections import Counter
+        label_counts = Counter(labeled[water_binary & (labeled > 0)].tolist())
+        auto_added = []
+        for lbl, cnt in label_counts.most_common(20):
+            if lbl in sea_labels:
+                continue
+            if cnt / max(n_before, 1) >= SEA_LARGE_COMPONENT_RATIO:
+                sea_labels.add(lbl)
+                auto_added.append((lbl, cnt))
+        if auto_added:
+            for lbl, cnt in auto_added:
+                print(f"    ℹ️  自动补充大连通域 label={lbl}: "
+                      f"{cnt:,} px ({cnt/max(n_before,1)*100:.1f}% ≥ {SEA_LARGE_COMPONENT_RATIO*100:.0f}%)")
+
+        # 仅保留已确认的外海连通域
         sea_binary = np.zeros_like(water_binary, dtype=bool)
         for lbl in sea_labels:
             sea_binary |= (labeled == lbl)

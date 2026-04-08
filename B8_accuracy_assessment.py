@@ -23,6 +23,9 @@ import rasterio
 from rasterio.transform import rowcol as rasterio_rowcol
 import geopandas as gpd
 from shapely.geometry import Point
+import matplotlib
+matplotlib.rcParams['font.sans-serif'] = ['Noto Sans CJK JP', 'DejaVu Sans']
+matplotlib.rcParams['axes.unicode_minus'] = False
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 

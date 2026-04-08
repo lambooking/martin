@@ -23,6 +23,9 @@ import warnings
 import numpy as np
 import pandas as pd
 import rasterio
+import matplotlib
+matplotlib.rcParams['font.sans-serif'] = ['Noto Sans CJK JP', 'DejaVu Sans']
+matplotlib.rcParams['axes.unicode_minus'] = False
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from skimage.filters import threshold_otsu

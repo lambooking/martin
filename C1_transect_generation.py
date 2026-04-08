@@ -121,7 +121,7 @@ def main():
 
     # 读取起始图层生成作为基线使用
     print(f"\n  正在加载 {base_waterline_path} ...")
-    baseline_gdf = gpd.read_file(base_waterline_path)
+    baseline_gdf = gpd.read_file(base_waterline_path, layer="waterline")
     
     # 确保是投影坐标系（单位米），否则无法按米计算间距
     if baseline_gdf.crs is not None and baseline_gdf.crs.is_geographic:

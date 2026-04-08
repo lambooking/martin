@@ -59,17 +59,23 @@ def compute_auto_offset(period: str):
     # 2. 预处理：标准化并提取边缘
     # 处理掩膜
     mask = (~np.isnan(mndwi)) & (~np.isnan(s1_vh)) & (mndwi != nodata)
-    
+
     # 简单的归一化使两者尺度接近
     # MNDWI [-1, 1] 映射到 [0, 1]
     img_opt = np.clip((mndwi + 1) / 2, 0, 1)
-    
-    # S1 VH [-30, -5] 映射到 [1, 0] (注意反转，使水体都变黑)
-    img_sar = np.clip((s1_vh + 30) / 25, 0, 1)
-    
-    # 应用边缘检测 (Sobel)
-    edge_opt = filters.sobel(img_opt)
-    edge_sar = filters.sobel(img_sar)
+
+    # S1 VH 动态范围映射到 [0, 1]（根据实际数据范围调整）
+    vh_valid = s1_vh[mask]
+    if vh_valid.size > 0:
+        vh_low  = float(np.percentile(vh_valid, 2))
+        vh_high = float(np.percentile(vh_valid, 98))
+    else:
+        vh_low, vh_high = -30.0, -5.0
+    img_sar = np.clip((s1_vh - vh_low) / max(vh_high - vh_low, 1e-6), 0, 1)
+
+    # NaN 填 0 后再做 Sobel（防止 NaN 在卷积中扩散）
+    edge_opt = filters.sobel(np.where(np.isnan(img_opt), 0.0, img_opt))
+    edge_sar = filters.sobel(np.where(np.isnan(img_sar), 0.0, img_sar))
 
     # 3. 分块滑动匹配
     h, w = mndwi.shape
@@ -81,8 +87,8 @@ def compute_auto_offset(period: str):
             tile_sar = edge_sar[r:r+TILE_SIZE, c:c+TILE_SIZE]
             tile_mask = mask[r:r+TILE_SIZE, c:c+TILE_SIZE]
             
-            # 只分析陆海交界（边缘强度高）且无无效值的块
-            if np.mean(tile_opt) > EDGE_THRESHOLD and np.all(tile_mask):
+            # 只分析陆海交界（边缘强度高）且无效值比例低的块
+            if np.mean(tile_opt) > EDGE_THRESHOLD and np.mean(tile_mask) > 0.95:
                 # 计算相位互相关
                 # shift 格式: (row_offset, col_offset)
                 shift, error, diffphase = registration.phase_cross_correlation(
